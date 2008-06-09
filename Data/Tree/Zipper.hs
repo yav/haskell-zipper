@@ -257,8 +257,7 @@ delete loc =
 
 
 -- | private: Gets the 'n'th element of a list.
--- -- Also return the preceeding element
--- (reversed) and the folloing elements.
+-- Also returns the preceeding elements (reversed) and the folloing elements.
 splitChildren :: [a] -> Int -> Maybe ([a],a,[a])
 splitChildren _ n | n < 0 = Nothing
 splitChildren cs pos = loop [] cs pos
