@@ -261,7 +261,7 @@ delete loc =
 -- (reversed) and the folloing elements.
 splitChildren :: [a] -> Int -> Maybe ([a],a,[a])
 splitChildren _ n | n < 0 = Nothing
-splitChildren xs n = loop [] xs n
+splitChildren cs pos = loop [] cs pos
   where loop acc (x:xs) 0 = Just (acc,x,xs)
         loop acc (x:xs) n = loop (x:acc) xs $! n-1
         loop _ _ _        = Nothing
