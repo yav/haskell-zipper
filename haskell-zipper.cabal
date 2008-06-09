@@ -1,0 +1,15 @@
+Name:           haskell-zipper
+Version:        0.1
+License:        BSD3
+License-file:   LICENSE
+Author:         Krasimir Angelov, Iavor S. Diatchki
+Maintainer:     diatchki@galois.com
+Category:       Data Structures
+Synopsis:       A Haskell datastructure for working with locations in
+                trees or forests.
+Build-Depends:  base, containers
+Build-type:     Simple
+Extra-source-files: LICENSE, tests.hs
+Exposed-modules: Data.Tree.Zipper
+GHC-options:    -O2 -Wall
+
