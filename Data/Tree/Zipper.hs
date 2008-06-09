@@ -61,7 +61,6 @@ data TreeLoc a  = Loc
       -- ^ The contexts of the parents for this location.
   } deriving (Read,Show,Eq)
 
-
 -- Moving around ---------------------------------------------------------------
 
 -- | The parent of the given location.
@@ -114,7 +113,7 @@ lastChild loc =
 -- | The child with the given index (starting from 0).
 getChild :: Int -> TreeLoc a -> Maybe (TreeLoc a)
 getChild n loc =
-  do (ls,t,rs) <- splitChildren [] (subForest (tree loc)) n
+  do (ls,t,rs) <- splitChildren (subForest (tree loc)) n
      return Loc { tree = t, lefts = ls, rights = rs, parents = downParents loc }
 
 -- | The first child that satisfies a predicate.
@@ -127,7 +126,7 @@ findChild p loc =
         split acc (x:xs)        = split (x:acc) xs
         split _ []              = Nothing
 
--- private: computes the parent for "down" operations.
+-- | private: computes the parent for "down" operations.
 downParents :: TreeLoc a -> [(Forest a, a, Forest a)]
 downParents loc = (lefts loc, rootLabel (tree loc), rights loc) : parents loc
 
@@ -220,20 +219,28 @@ insertLeft t loc = loc { tree = t, rights = tree loc : rights loc }
 insertRight :: Tree a -> TreeLoc a -> TreeLoc a
 insertRight t loc = loc { tree = t, lefts = tree loc : lefts loc }
 
+-- | Insert a tree as the first child of the current position.
+-- The new tree becomes the current tree.
 insertDownFirst :: Tree a -> TreeLoc a -> TreeLoc a
 insertDownFirst t loc =
   loc { tree = t, lefts = [], rights = subForest (tree loc)
       , parents = downParents loc }
 
+-- | Insert a tree as the last child of the current position.
+-- The new tree becomes the current tree.
 insertDownLast :: Tree a -> TreeLoc a -> TreeLoc a
 insertDownLast t loc =
   loc { tree = t, lefts = reverse (subForest (tree loc)), rights = []
       , parents = downParents loc }
 
+-- | Insert a tree as a particular child of the current location.
+-- Children are numbered from 0.
+-- The new tree becomes the current tree.
 insertDownAt :: Int -> Tree a -> TreeLoc a -> Maybe (TreeLoc a)
 insertDownAt n t loc =
-  do (ls,x,rs) <- splitChildren [] (subForest (tree loc)) n
-     return loc { tree = t, lefts = ls, rights = (x:rs), parents = downParents loc }
+  do (ls,x,rs) <- splitChildren (subForest (tree loc)) n
+     return Loc { tree = t, lefts = ls, rights = x : rs
+                , parents = downParents loc }
 
 -- | Delete the current node.  The new position is:
 --   * the right sibling, or if none
@@ -249,10 +256,17 @@ delete loc =
                    return $ modifyTree (\t -> t { subForest = [] }) loc1
 
 
-splitChildren :: [a] -> [a] -> Int -> Maybe ([a],a,[a])
-splitChildren acc (x:xs) 0  = Just (acc,x,xs)
-splitChildren acc (x:xs) n  = splitChildren (x:acc) xs $! n-1
-splitChildren _ _ _         = Nothing
+-- | private: Gets the 'n'th element of a list.
+-- -- Also return the preceeding element
+-- (reversed) and the folloing elements.
+splitChildren :: [a] -> Int -> Maybe ([a],a,[a])
+splitChildren _ n | n < 0 = Nothing
+splitChildren xs n = loop [] xs n
+  where loop acc (x:xs) 0 = Just (acc,x,xs)
+        loop acc (x:xs) n = loop (x:acc) xs $! n-1
+        loop _ _ _        = Nothing
 
-
+-- | private: combChildren ls x ys = reverse ls ++ [x] ++ ys
+combChildren :: [a] -> a -> [a] -> [a]
 combChildren ls t rs = foldl (flip (:)) (t:rs) ls
+
