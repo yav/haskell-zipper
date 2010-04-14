@@ -1,9 +1,9 @@
 Name:           haskell-zipper
-Version:        0.1
+Version:        0.2
 License:        BSD3
 License-file:   LICENSE
 Author:         Krasimir Angelov, Iavor S. Diatchki
-Maintainer:     diatchki@galois.com
+Maintainer:     iavor.diatchki@gmail.com
 Category:       Data Structures
 Synopsis:       A Haskell datastructure for working with locations in
                 trees or forests.
