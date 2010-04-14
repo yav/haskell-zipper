@@ -53,13 +53,21 @@ module Data.Tree.Zipper
 import Data.Tree
 
 -- | A position within a 'Tree'.
-data TreeLoc a  = Loc
-  { tree    :: Tree a       -- ^ The currently selected tree.
+data TreePos ptr a  = Loc
+  { content :: ptr a        -- ^ The currently selected tree.
   , lefts   :: Forest a     -- ^ Siblings on the left, closest first.
   , rights  :: Forest a     -- ^ Siblings on the right, closest first.
   , parents :: [(Forest a, a, Forest a)]
       -- ^ The contexts of the parents for this location.
   } deriving (Read,Show,Eq)
+
+data Empty a    = E
+newtype Full a  = F { unF :: Tree a }
+
+tree x = unF (content x)
+
+
+type TreeLoc    = TreePos Full
 
 -- Moving around ---------------------------------------------------------------
 
@@ -68,7 +76,7 @@ parent :: TreeLoc a -> Maybe (TreeLoc a)
 parent loc =
   case parents loc of
     (pls,v,prs) : ps -> Just
-      Loc { tree = Node v (combChildren (lefts loc) (tree loc) (rights loc))
+      Loc { content = F $ Node v (combChildren (lefts loc) (tree loc) (rights loc))
           , lefts = pls, rights = prs, parents = ps
           }
     [] -> Nothing
@@ -83,14 +91,14 @@ root loc = maybe loc root (parent loc)
 left :: TreeLoc a -> Maybe (TreeLoc a)
 left loc =
   case lefts loc of
-    t : ts -> Just loc { tree = t, lefts = ts, rights = tree loc : rights loc }
+    t : ts -> Just loc { content = F t, lefts = ts, rights = tree loc : rights loc }
     []     -> Nothing
 
 -- | The right sibling of the given location.
 right :: TreeLoc a -> Maybe (TreeLoc a)
 right loc =
   case rights loc of
-    t : ts -> Just loc { tree = t, lefts = tree loc : lefts loc, rights = ts }
+    t : ts -> Just loc { content = F t, lefts = tree loc : lefts loc, rights = ts }
     []     -> Nothing
 
 
@@ -99,7 +107,7 @@ firstChild :: TreeLoc a -> Maybe (TreeLoc a)
 firstChild loc =
   case subForest (tree loc) of
     t : ts -> Just
-      Loc { tree = t, lefts = [], rights = ts , parents = downParents loc }
+      Loc { content = F t, lefts = [], rights = ts , parents = downParents loc }
     [] -> Nothing
 
 -- | The last child of the given location.
@@ -107,20 +115,20 @@ lastChild :: TreeLoc a -> Maybe (TreeLoc a)
 lastChild loc =
   case reverse (subForest (tree loc)) of
     t : ts -> Just
-      Loc { tree = t, lefts = ts, rights = [], parents = downParents loc }
+      Loc { content = F t, lefts = ts, rights = [], parents = downParents loc }
     [] -> Nothing
 
 -- | The child with the given index (starting from 0).
 getChild :: Int -> TreeLoc a -> Maybe (TreeLoc a)
 getChild n loc =
   do (ls,t,rs) <- splitChildren (subForest (tree loc)) n
-     return Loc { tree = t, lefts = ls, rights = rs, parents = downParents loc }
+     return Loc { content = F t, lefts = ls, rights = rs, parents = downParents loc }
 
 -- | The first child that satisfies a predicate.
 findChild :: (Tree a -> Bool) -> TreeLoc a -> Maybe (TreeLoc a)
 findChild p loc =
   do (ls,t,rs) <- split [] (subForest (tree loc))
-     return Loc { tree = t, lefts = ls, rights = rs, parents = downParents loc }
+     return Loc { content = F t, lefts = ls, rights = rs, parents = downParents loc }
 
   where split acc (x:xs) | p x  = Just (acc,x,xs)
         split acc (x:xs)        = split (x:acc) xs
@@ -136,11 +144,11 @@ downParents loc = (lefts loc, rootLabel (tree loc), rights loc) : parents loc
 
 -- | A location corresponding to the root of the given tree.
 fromTree :: Tree a -> TreeLoc a
-fromTree t = Loc { tree = t, lefts = [], rights = [], parents = [] }
+fromTree t = Loc { content = F t, lefts = [], rights = [], parents = [] }
 
 -- | The location of the first tree in a forest.
 fromForest :: Forest a -> Maybe (TreeLoc a)
-fromForest (t:ts) = Just Loc { tree = t, lefts = [], rights = ts, parents = [] }
+fromForest (t:ts) = Just Loc { content = F t, lefts = [], rights = ts, parents = [] }
 fromForest []     = Nothing
 
 -- | Computes the tree containing this location.
@@ -188,7 +196,7 @@ hasChildren loc = not (isLeaf loc)
 
 -- | Change the current tree.
 setTree :: Tree a -> TreeLoc a -> TreeLoc a
-setTree t loc = loc { tree = t }
+setTree t loc = loc { content = F t }
 
 -- | Modify the current tree.
 modifyTree :: (Tree a -> Tree a) -> TreeLoc a -> TreeLoc a
@@ -212,25 +220,25 @@ getLabel loc = rootLabel (tree loc)
 -- | Insert a tree to the left of the current position.
 -- The new tree becomes the current tree.
 insertLeft :: Tree a -> TreeLoc a -> TreeLoc a
-insertLeft t loc = loc { tree = t, rights = tree loc : rights loc }
+insertLeft t loc = loc { content = F t, rights = tree loc : rights loc }
 
 -- | Insert a tree to the right of the current position.
 -- The new tree becomes the current tree.
 insertRight :: Tree a -> TreeLoc a -> TreeLoc a
-insertRight t loc = loc { tree = t, lefts = tree loc : lefts loc }
+insertRight t loc = loc { content = F t, lefts = tree loc : lefts loc }
 
 -- | Insert a tree as the first child of the current position.
 -- The new tree becomes the current tree.
 insertDownFirst :: Tree a -> TreeLoc a -> TreeLoc a
 insertDownFirst t loc =
-  loc { tree = t, lefts = [], rights = subForest (tree loc)
+  loc { content = F t, lefts = [], rights = subForest (tree loc)
       , parents = downParents loc }
 
 -- | Insert a tree as the last child of the current position.
 -- The new tree becomes the current tree.
 insertDownLast :: Tree a -> TreeLoc a -> TreeLoc a
 insertDownLast t loc =
-  loc { tree = t, lefts = reverse (subForest (tree loc)), rights = []
+  loc { content = F t, lefts = reverse (subForest (tree loc)), rights = []
       , parents = downParents loc }
 
 -- | Insert a tree as a particular child of the current location.
@@ -239,7 +247,7 @@ insertDownLast t loc =
 insertDownAt :: Int -> Tree a -> TreeLoc a -> Maybe (TreeLoc a)
 insertDownAt n t loc =
   do (ls,x,rs) <- splitChildren (subForest (tree loc)) n
-     return Loc { tree = t, lefts = ls, rights = x : rs
+     return Loc { content = F t, lefts = ls, rights = x : rs
                 , parents = downParents loc }
 
 -- | Delete the current node.  The new position is:
@@ -249,9 +257,9 @@ insertDownAt n t loc =
 delete :: TreeLoc a -> Maybe (TreeLoc a)
 delete loc =
   case rights loc of
-    t : ts -> Just loc { tree = t, rights = ts }
+    t : ts -> Just loc { content = F t, rights = ts }
     _ -> case lefts loc of
-           t : ts -> Just loc { tree = t, lefts = ts }
+           t : ts -> Just loc { content = F t, lefts = ts }
            _ -> do loc1 <- parent loc
                    return $ modifyTree (\t -> t { subForest = [] }) loc1
 
