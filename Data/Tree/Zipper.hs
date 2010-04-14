@@ -8,7 +8,7 @@
 
 module Data.Tree.Zipper
   ( TreePos
-  , TreePtr, Empty, Full
+  , PosType, Empty, Full
 
   -- * Context
   , before, after, forest, tree, label, parents
@@ -47,44 +47,58 @@ import Data.Tree
 import Prelude hiding (last)
 
 -- | A position within a 'Tree'.
-data TreePos ptr a  = Loc
-  { content   :: ptr a        -- ^ The currently selected tree.
+-- The parameter 't' inidcates if the position is pointing to
+-- a specific tree (if 't' is 'Full'), or if it is pointing in-between
+-- trees (if 't' is 'Empty').
+data TreePos t a  = Loc
+  { content   :: t a        -- ^ The currently selected tree.
   , before    :: Forest a     -- ^ Siblings before this position, closest first.
   , after     :: Forest a     -- ^ Siblings after this position, closest first.
   , parents   :: [(Forest a, a, Forest a)]
       -- ^ The contexts of the parents for this position.
   } deriving (Read,Show,Eq)
 
--- | Position which does not point to a tree (e.g., between two trees).
-data Empty a    = E
+-- | Position which does not point to a tree (e.g., it is between two trees).
+data Empty a    = E deriving (Read,Show,Eq)
 
 -- | Position which points to a tree.
-newtype Full a  = F { unF :: Tree a }
+newtype Full a  = F { unF :: Tree a } deriving (Read,Show,Eq)
 
 
--- | Operations that work on both full and empty positions.
-class TreePtr ptr where
-
-  -- | The prev sibling of the given location.
-  prev    :: TreePos ptr a -> Maybe (TreePos ptr a)
-
-  -- | The next sibling of the given location.
-  next    :: TreePos ptr a -> Maybe (TreePos ptr a)
-
-  -- | The surrounding forest of this position (i.e., our neighbours).
-  forest  :: TreePos ptr a -> Forest a
+-- | Positions may be either 'Full' or 'Empty'.
+class PosType t where
+  _prev      :: TreePos t a -> Maybe (TreePos t a)
+  _next      :: TreePos t a -> Maybe (TreePos t a)
+  _forest    :: TreePos t a -> Forest a
 
 
+instance PosType Full where
+  _prev       = prevTree . prevSpace
+  _next       = nextTree . nextSpace
+  _forest loc = foldl (flip (:)) (tree loc : after loc) (before loc)
 
-instance TreePtr Full where
-  prev        = prevTree . prevSpace
-  next       = nextTree . nextSpace
-  forest loc  = foldl (flip (:)) (tree loc : after loc) (before loc)
+instance PosType Empty where
+  _prev       = fmap prevSpace . prevTree
+  _next       = fmap nextSpace . nextTree
+  _forest loc = foldl (flip (:)) (after loc) (before loc)
 
-instance TreePtr Empty where
-  prev        = fmap prevSpace . prevTree
-  next       = fmap nextSpace . nextTree
-  forest loc  = foldl (flip (:)) (after loc) (before loc)
+
+
+
+-- XXX: We do this because haddock insist on placing methods
+-- in the class...
+
+-- | The sibling before this location.
+prev    :: PosType t => TreePos t a -> Maybe (TreePos t a)
+prev     = _prev
+
+-- | The sibling after this location.
+next     :: PosType t => TreePos t a -> Maybe (TreePos t a)
+next      = _next
+
+-- | The surrounding forest of this position (i.e., our neighbours).
+forest   :: PosType t => TreePos t a -> Forest a
+forest    = _forest
 
 
 
@@ -93,7 +107,7 @@ instance TreePtr Empty where
 -- Moving around ---------------------------------------------------------------
 
 -- | The parent of the given location.
-parent :: TreePtr ptr => TreePos ptr a -> Maybe (TreePos Full a)
+parent :: PosType t => TreePos t a -> Maybe (TreePos Full a)
 parent loc =
   case parents loc of
     (ls,a,rs) : ps -> Just
@@ -109,11 +123,11 @@ parent loc =
 root :: TreePos Full a -> TreePos Full a
 root loc = maybe loc root (parent loc)
 
--- | The space to the prev of the current location.
+-- | The space immediately before this location.
 prevSpace :: TreePos Full a -> TreePos Empty a
 prevSpace loc = loc { content = E, after = tree loc : after loc }
 
--- | The tree to the prev of the current space, if any.
+-- | The tree before this location, if any.
 prevTree :: TreePos Empty a -> Maybe (TreePos Full a)
 prevTree loc =
   case before loc of
@@ -121,12 +135,12 @@ prevTree loc =
     []     -> Nothing
 
 
--- | The space to the next of the current location.
+-- | The space immediately after this location.
 nextSpace :: TreePos Full a -> TreePos Empty a
 nextSpace loc = loc { content = E, before = tree loc : before loc }
 
 
--- | The tree to the next of the current space, if any.
+-- | The tree after this location, if any.
 nextTree :: TreePos Empty a -> Maybe (TreePos Full a)
 nextTree loc =
   case after loc of
@@ -134,6 +148,7 @@ nextTree loc =
     []     -> Nothing
 
 
+-- | The location at the beginning of the forest of children.
 children :: TreePos Full a -> TreePos Empty a
 children loc =
   Loc { content = E
@@ -143,14 +158,14 @@ children loc =
                 : parents loc
       }
 
+-- | The first space in the current forest.
 first :: TreePos Empty a -> TreePos Empty a
 first loc = loc { content = E
-                   , before   = []
-                   , after  = reverse (before loc) ++ after loc
-                   }
+                , before   = []
+                , after  = reverse (before loc) ++ after loc
+                }
 
-
-
+-- | The last space in the current forest.
 last :: TreePos Empty a -> TreePos Empty a
 last loc = loc { content = E
                     , before   = reverse (after loc) ++ before loc
@@ -177,16 +192,16 @@ lastChild = prevTree . last . children
 fromTree :: Tree a -> TreePos Full a
 fromTree t = Loc { content = F t, before = [], after = [], parents = [] }
 
--- | The location at the beginning of the a forest.
+-- | The location at the beginning of the forest.
 fromForest :: Forest a -> TreePos Empty a
 fromForest ts = Loc { content = E, before = [], after = ts, parents = [] }
 
--- | Computes the tree containing this location.
+-- | The tree containing this location.
 toTree :: TreePos Full a -> Tree a
 toTree loc = tree (root loc)
 
--- | Computes the forest containing this location.
-toForest :: TreePtr ptr => TreePos ptr a -> Forest a
+-- | The forest containing this location.
+toForest :: PosType t => TreePos t a -> Forest a
 toForest loc = case parent loc of
                  Nothing -> forest loc
                  Just p  -> toForest p -- polymprphic recursion
@@ -195,15 +210,15 @@ toForest loc = case parent loc of
 -- Queries ---------------------------------------------------------------------
 
 -- | Are we at the top of the tree?
-isRoot :: TreePtr ptr => TreePos ptr a -> Bool
+isRoot :: PosType t => TreePos t a -> Bool
 isRoot loc = null (parents loc)
 
 -- | Are we the first position (of its kind) in a forest.
-isFirst :: TreePos ptr a -> Bool
+isFirst :: TreePos t a -> Bool
 isFirst loc = null (before loc)
 
 -- | Are we the last position (of its kind) in a forest.
-isLast :: TreePos ptr a -> Bool
+isLast :: TreePos t a -> Bool
 isLast loc = null (after loc)
 
 -- | Are we at the bottom of the tree?
@@ -211,7 +226,7 @@ isLeaf :: TreePos Full a -> Bool
 isLeaf loc = null (subForest (tree loc))
 
 -- | Do we have a parent?
-isContained :: TreePtr ptr => TreePos ptr a -> Bool
+isContained :: PosType t => TreePos t a -> Bool
 isContained loc = not (isRoot loc)
 
 -- | Do we have children?
