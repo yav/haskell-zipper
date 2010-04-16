@@ -123,10 +123,10 @@ parent :: PosType t => TreePos t a -> Maybe (TreePos Full a)
 parent loc =
   case parents loc of
     (ls,a,rs) : ps -> Just
-      Loc { _content = F (Node a (forest loc))
+      Loc { _content  = F (Node a (forest loc))
           , _before   = ls
-          , _after  = rs
-          , _parents = ps
+          , _after    = rs
+          , _parents  = ps
           }
     [] -> Nothing
 
