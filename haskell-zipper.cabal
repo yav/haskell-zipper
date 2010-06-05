@@ -7,7 +7,7 @@ Maintainer:     iavor.diatchki@gmail.com
 Category:       Data Structures
 Synopsis:       A Haskell datastructure for working with locations in
                 trees or forests.
-Build-Depends:  base, containers
+Build-Depends:  base < 5, containers
 Build-type:     Simple
 Extra-source-files: LICENSE, tests.hs
 Exposed-modules: Data.Tree.Zipper
