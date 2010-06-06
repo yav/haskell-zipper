@@ -108,7 +108,8 @@ prev     = _prev
 next     :: PosType t => TreePos t a -> Maybe (TreePos t a)
 next      = _next
 
--- | The surrounding forest of this position (i.e., our neighbours).
+-- | All trees at this location
+-- (i.e., the current tree---if any---and its siblings).
 forest   :: PosType t => TreePos t a -> Forest a
 forest    = _forest
 
