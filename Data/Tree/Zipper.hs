@@ -22,9 +22,9 @@ module Data.Tree.Zipper
   -- * Moving around
   , parent
   , root
-  , prevSpace, prevTree, prev, first
+  , prevSpace, prevTree, prev, first, spaceAt
   , nextSpace, nextTree, next, last
-  , children, firstChild, lastChild
+  , children, firstChild, lastChild, childAt
 
   -- * Node classification
   , isRoot
@@ -185,6 +185,16 @@ last loc = loc { _content = E
                , _after   = []
                }
 
+-- | The empty space at the given index.  The first space is at index 0.
+-- For indexes that are negative or too large, we return the first and last
+-- position in the tree, respectively.
+spaceAt :: Int -> TreePos Empty a -> TreePos Empty a
+spaceAt n loc = loc { _content = E
+                    , _before  = reverse as
+                    , _after   = bs
+                    }
+  where (as,bs) = splitAt n (forest loc)
+
 
 -- | The first child of the given location.
 firstChild :: TreePos Full a -> Maybe (TreePos Full a)
@@ -194,9 +204,11 @@ firstChild = nextTree . children
 lastChild :: TreePos Full a -> Maybe (TreePos Full a)
 lastChild = prevTree . last . children
 
-
-
-
+-- | The child at the given index in the tree.
+-- The first child is at index 0.
+childAt :: Int -> TreePos Full a -> Maybe (TreePos Full a)
+childAt n | n < 0 = const Nothing
+childAt n         = nextTree . spaceAt n . children
 
 
 -- Conversions -----------------------------------------------------------------
